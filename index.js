@@ -161,6 +161,8 @@ io.on("connection",(socket)=>{
     socket.on("end_quizz",(data)=>{
         if (data.quizz_link in quizzs) {
             console.log(formatResult(quizzs[data.quizz_link].reponses))
+            console.log(quizzs[data.quizz_link].quizz_data._id);
+            console.log(quizzs[data.quizz_link].cmp);
             socket.emit("quizz_ended",{quizz_link:data.quizz_link})
             socket.to(data.quizz_link).emit("quizz_ended")
             delete quizzs[data.quizz_link]
@@ -241,6 +243,11 @@ io.on("connection",(socket)=>{
             socket.to(data.quizz_link).emit("nb_user_responses",{quizz_link:data.quizz_link,nb_response:quizzs[data.quizz_link].cmp})
         }
 
+    })
+
+    socket.on("participant_finish",(data)=>{
+        quizzs[data.quizz_link].cmp++;
+        socket.to(data.quizz_link).emit("nb_user_responses",{quizz_link:data.quizz_link,nb_response:quizzs[data.quizz_link].cmp})
     })
 
     socket.on("responded",(data)=>{
