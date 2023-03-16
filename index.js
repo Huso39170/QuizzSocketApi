@@ -12,11 +12,14 @@ const server = http.createServer(app);
 
 const apiUrl = 'http://localhost:3500';
 
+
 // Création d'une instance de Socket.IO en configurant CORS
 const io = new Server(server,{
     cors:{
         origin:'http://localhost:3000',
-        methods: ["GET","POST"]
+        methods: ["GET","POST"],
+        headers:{'Access-Control-Allow-Origin': 'http://localhost:3000'},
+        withCredentials: true
     }
 }); 
 
@@ -114,6 +117,7 @@ io.on("connection",(socket)=>{
                 particpant:[],
                 cmp:0,
                 index:0,
+                session_name:data.session_name,
                 quizz_data:data.quizz_data,
                 quizz_type:data.quizz_type,
                 timer:data.timer,
@@ -123,6 +127,7 @@ io.on("connection",(socket)=>{
                 creator:socket.id,
                 particpant:[],
                 cmp:0,
+                session_name:data.session_name,
                 quizz_data:data.quizz_data,
                 quizz_type:data.quizz_type,
                 reponses:[]}
@@ -130,6 +135,7 @@ io.on("connection",(socket)=>{
             quizzs[quizz_link]={
                 creator:socket.id,
                 particpant:[],
+                session_name:data.session_name,
                 cmp:0,
                 index:0,
                 quizz_data:data.quizz_data,
@@ -163,6 +169,11 @@ io.on("connection",(socket)=>{
             console.log(formatResult(quizzs[data.quizz_link].reponses))
             console.log(quizzs[data.quizz_link].quizz_data._id);
             console.log(quizzs[data.quizz_link].cmp);
+            console.log(quizzs[data.quizz_link].session_name);
+            const now = new Date();
+            const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+            const formattedDate = now.toLocaleString('fr-FR', options);
+            console.log(formattedDate);
             socket.emit("quizz_ended",{quizz_link:data.quizz_link})
             socket.to(data.quizz_link).emit("quizz_ended")
             delete quizzs[data.quizz_link]
