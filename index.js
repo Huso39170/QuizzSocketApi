@@ -27,6 +27,67 @@ const io = new Server(server,{
 // Définition d'un objet pour stocker les quizzs en cours
 let quizzs = {};
 
+
+// Fonction pour créer un objet quiz en fonction du type
+function createQuizz(data) {
+    const commonData = {
+        email: data.email,
+        participants: [],
+        session_name: data.session_name,
+        quizz_data: data.quizz_data,
+        quizz_type: data.quizz_type,
+        reponses: [],
+    };
+
+    switch (data.quizz_type) {
+        case 'timer':
+        return {
+            ...commonData,
+            cmp: 0,
+            index: 0,
+            currResponse: [],
+            nbCurrResponse: 0,
+            timer: data.timer,
+        };
+        case 'participant':
+        return {
+            ...commonData,
+            cmp: 0,
+        };
+        default:
+        return {
+            ...commonData,
+            cmp: 0,
+            index: 0,
+            currResponse: [],
+            nbCurrResponse: 0,
+        };
+    }
+}
+
+
+
+// Fonction pour envoyer les données du quiz à l'administrateur
+function sendQuizzDataToAdmin(socket, quizz_link) {
+    const commonData = {
+      quizz_data: quizzs[quizz_link].quizz_data,
+      quizz_type: quizzs[quizz_link].quizz_type,
+      nb_user: (io.sockets.adapter.rooms.get(quizz_link).size) - 1,
+      nb_response: quizzs[quizz_link].cmp,
+    };
+  
+    const sendData = quizzs[quizz_link].quizz_type === 'participant'
+      ? commonData
+      : {
+          ...commonData,
+          index: quizzs[quizz_link].index,
+          currResponse: quizzs[quizz_link].currResponse,
+          nbCurrResponse: quizzs[quizz_link].nbCurrResponse,
+        };
+  
+    socket.emit('send_quizz_data', sendData);
+  }
+
 // Définition d'une fonction pour générer une chaîne de caractères aléatoire 
 //pour les identifiants de quizzs
 function generateRandomString() {
@@ -38,39 +99,26 @@ function generateRandomString() {
     return randomString.toLowerCase();
 }
 
-// Définition d'une fonction pour vérifier si un utilisateur 
-//est autorisé à accéder à la page d'admin d'un quizz
-function checkRoom (quizz_link,admin){
-    if (quizz_link in quizzs) {
-        if(quizzs[quizz_link].creator===admin){
-            return true
-        }else{
-            return false
-        }
-    } else {
-        return false
-    }
+/* Fonction pour vérifier si un utilisateur 
+est autorisé à accéder à la page d'admin d'un quiz*/
+
+function checkRoom(quizz_link, email) {
+    return quizz_link in quizzs && quizzs[quizz_link].email === email;
 }
 
 
-// Définition d'une fonction pour vérifier si le quizz est lancer
-function checkQuizz(quizz_link){
-    if (quizz_link in quizzs) {
-        return true
-    } else {
-        return false
-    }
-}
-
-function getKeyByCreator(object, value) {
-    return Object.keys(object).find(key => object[key].creator === value);
+// Fonction pour obtenir la date formatée
+function getFormattedDate() {
+    const now = new Date();
+    const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
+    return now.toLocaleString('fr-FR', options);
 }
 
 const findArrayWithElement = (object, searchElem) => {
     for (let key in object) {
-        if (object[key].hasOwnProperty('particpant') && object[key].particpant.includes(searchElem)) {
-            let index =  object[key].particpant.indexOf(searchElem);
-            object[key].particpant.splice(index, 1);
+        if (object[key].hasOwnProperty('participants') && object[key].participants.includes(searchElem)) {
+            let index =  object[key].participants.indexOf(searchElem);
+            object[key].participants.splice(index, 1);
             return key;
         }
     }
@@ -108,57 +156,29 @@ const formatResult = (data) =>{
 // réception d'une connexion
 io.on("connection",(socket)=>{
     console.log("joined : "+socket.id)
+
     // Géstion de l'événement de démarrage d'un quizz
     socket.on("start_quizz",(data)=>{
-        let quizz_link = generateRandomString();
-        if(data.quizz_type==="timer"){
-            quizzs[quizz_link]={
-                creator:socket.id,
-                particpant:[],
-                cmp:0,
-                index:0,
-                session_name:data.session_name,
-                quizz_data:data.quizz_data,
-                quizz_type:data.quizz_type,
-                timer:data.timer,
-                reponses:[]}
-        }else if(data.quizz_type==="participant"){
-            quizzs[quizz_link]={
-                creator:socket.id,
-                particpant:[],
-                cmp:0,
-                session_name:data.session_name,
-                quizz_data:data.quizz_data,
-                quizz_type:data.quizz_type,
-                reponses:[]}
-        }else{
-            quizzs[quizz_link]={
-                creator:socket.id,
-                particpant:[],
-                session_name:data.session_name,
-                cmp:0,
-                index:0,
-                quizz_data:data.quizz_data,
-                quizz_type:data.quizz_type,
-                reponses:[]}
-        }
+        const quizz_link = generateRandomString();
+        const quizz = createQuizz(data);
+        quizzs[quizz_link] = quizz;
         socket.join(quizz_link);
+        
         console.log(`Admin with ID: ${socket.id} joined room: ${quizz_link}`);
-        socket.emit("quizz_started",{quizz_link:quizz_link})
+        socket.emit('quizz_started', { quizz_link: quizz_link });
     });
 
     // Géstion de l'événement de connexion d'un administrateur à un quizz
     socket.on("admin_joined",(data)=>{
-        let verif= checkRoom(data.quizz_link,socket.id)
-        if (verif) {
-            socket.emit("send_quizz_data",{quizz_data:quizzs[data.quizz_link].quizz_data,
-                                            quizz_type:quizzs[data.quizz_link].quizz_type,
-                                            nb_response:quizzs[data.quizz_link].cmp});
-            if(quizzs[data.quizz_link].quizz_type==="timer"){
-                socket.emit("give_timer",{timer:quizzs[data.quizz_link].timer})
+        if (checkRoom(data.quizz_link, data.email)) {
+            socket.join(data.quizz_link);
+            sendQuizzDataToAdmin(socket, data.quizz_link);
+
+            if (quizzs[data.quizz_link].quizz_type === 'timer') {
+                socket.emit('give_timer', { timer: quizzs[data.quizz_link].timer });
             }
-        }else{
-            socket.emit("quizz_not_exist_or_not_admin")
+        } else {
+            socket.emit('quizz_not_exist_or_not_admin');
         }
         
     });
@@ -166,17 +186,19 @@ io.on("connection",(socket)=>{
     // Géstion de l'événement de fin d'un quizz
     socket.on("end_quizz",(data)=>{
         if (data.quizz_link in quizzs) {
-            console.log(formatResult(quizzs[data.quizz_link].reponses))
-            console.log(quizzs[data.quizz_link].quizz_data._id);
-            console.log(quizzs[data.quizz_link].cmp);
-            console.log(quizzs[data.quizz_link].session_name);
-            const now = new Date();
-            const options = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
-            const formattedDate = now.toLocaleString('fr-FR', options);
+            const quizz = quizzs[data.quizz_link];
+            console.log(formatResult(quizz.reponses));
+            console.log(quizz.quizz_data._id);
+            console.log(quizz.cmp);
+            console.log(quizz.session_name);
+            
+            const formattedDate = getFormattedDate();
             console.log(formattedDate);
-            socket.emit("quizz_ended",{quizz_link:data.quizz_link})
-            socket.to(data.quizz_link).emit("quizz_ended")
-            delete quizzs[data.quizz_link]
+        
+            socket.emit('quizz_ended', { quizz_link: data.quizz_link });
+            socket.to(data.quizz_link).emit('quizz_ended');
+            
+            delete quizzs[data.quizz_link];
             socket.leave(data.quizz_link);
             console.log(`Admin with ID: ${socket.id} leave room: ${data.quizz_link}`);
         }
@@ -184,37 +206,35 @@ io.on("connection",(socket)=>{
 
     //Gestion de l'evenement lorsqu'un utilisateur rejoin le quizz
     socket.on("join_quizz",(data)=>{
-        //Verification de l'existance du quizz
-        const result=checkQuizz(data.quizz_link);
         //si le quizz exist
-        if(result){
-            //L'utilisateur rejoin le quizz
+        if(data.quizz_link in quizzs){
+            const quizz = quizzs[data.quizz_link];
+
+            // L'utilisateur rejoint le quiz
             socket.join(data.quizz_link);
-
-            quizzs[data.quizz_link].particpant.push(socket.id);
-
-            socket.to(data.quizz_link).emit("user_join_or_left",{nb_user:(io.sockets.adapter.rooms.get(data.quizz_link).size)-1})
+            quizz.participants.push(socket.id);
+            socket.to(data.quizz_link).emit('user_join_or_left', { nb_user: (io.sockets.adapter.rooms.get(data.quizz_link).size) - 1 });
             console.log(`User with ID: ${socket.id} joined room: ${data.quizz_link}`);
 
-            if(quizzs[data.quizz_link].quizz_type==="timer"){
-                socket.emit("give_counter",{timer: quizzs[data.quizz_link].timer})
+            if (quizz.quizz_type === 'timer') {
+                socket.emit('give_counter', { timer: quizz.timer });
             }
 
-            //Si le quizz est en mode participant quiz passe
-            if(quizzs[data.quizz_link].quizz_type==="participant"){
-                //Envoie de tt les questions à l'utilisateur
-                socket.emit("send_quizz_data",{quizz_data:quizzs[data.quizz_link].quizz_data,quizz_type:quizzs[data.quizz_link].quizz_type});
-            }else{
-                //Sinon envoie de la question courrante
-                let currIndex=quizzs[data.quizz_link].index
-                let curr_question =  quizzs[data.quizz_link].quizz_data.questions[currIndex]
-                let quizz_with_only_curr_question = Object.assign({}, quizzs[data.quizz_link].quizz_data);
-                delete quizz_with_only_curr_question.questions;
-                quizz_with_only_curr_question["questions"]=[curr_question];
-                socket.emit("send_curr_question_and_data",{quizz_data : quizz_with_only_curr_question
-                                                            ,quizz_type : quizzs[data.quizz_link].quizz_type
-                                                            ,nb_questions:quizzs[data.quizz_link].quizz_data.questions.length
-                                                            ,index:quizzs[data.quizz_link].index});
+            if (quizz.quizz_type === 'participant') {
+                // Envoie de toutes les questions à l'utilisateur
+                socket.emit('send_quizz_data', { quizz_data: quizz.quizz_data, quizz_type: quizz.quizz_type });
+            } else {
+                // Envoie de la question courante
+                const curr_index = quizz.index;
+                const curr_question = quizz.quizz_data.questions[curr_index];
+                const quizzWithOnlyCurrentQuestion = { ...quizz.quizz_data, questions: [curr_question] };
+
+                socket.emit('send_curr_question_and_data', {
+                    quizz_data: quizzWithOnlyCurrentQuestion,
+                    quizz_type: quizz.quizz_type,
+                    nb_questions: quizz.quizz_data.questions.length,
+                    index: quizz.index,
+                });
             }
 
         //Si le quizz n'existe pas envoie d'une socket pour prevenir l'utilisateur
@@ -227,59 +247,72 @@ io.on("connection",(socket)=>{
     //Gestion de l'evenement de passage à la question suivantz
     socket.on("give_next_question",(data)=>{
         if(data.quizz_link in quizzs){
-            quizzs[data.quizz_link].index=data.index;
-            let next_question =  quizzs[data.quizz_link].quizz_data.questions[data.index]
-            let quizz_next_question = Object.assign({}, quizzs[data.quizz_link].quizz_data);
-            delete quizz_next_question.questions;
-            quizz_next_question["questions"]=[next_question];
-            socket.to(data.quizz_link).emit("next_question",{quizz_data:quizz_next_question,index:quizzs[data.quizz_link].index})
+            const quizz = quizzs[data.quizz_link];
+            quizz.index = data.index;
+            quizz.nbCurrResponse = 0;
+            quizz.currResponse = [];
+        
+            const next_question = quizz.quizz_data.questions[data.index];
+            const quizzNextQuestion = { ...quizz.quizz_data, questions: [next_question] };
+        
+            socket.to(data.quizz_link).emit('next_question', { quizz_data: quizzNextQuestion, index: quizz.index });
         }
     })
+    
 
-    socket.on("leave_quizz",(data)=>{
+    // Gestion de l'événement lorsqu'un utilisateur quitte un quiz
+    socket.on('leave_quizz', (data) => {
         console.log(`User with ID: ${socket.id} leave room: ${data.quizz_link}`);
         socket.leave(data.quizz_link);
-        if(io.sockets.adapter.rooms.get(data.quizz_link))(
-            socket.to(data.quizz_link).emit("user_join_or_left",{nb_user:(io.sockets.adapter.rooms.get(data.quizz_link).size)-1})
-        )
+        if (io.sockets.adapter.rooms.get(data.quizz_link)) {
+        socket.to(data.quizz_link).emit('user_join_or_left', { nb_user: (io.sockets.adapter.rooms.get(data.quizz_link).size) - 1 });
+        }
     });
 
-    socket.on("send_response_finish",(data)=>{
-        if(data.quizz_link in quizzs){
+
+    // Gestion de l'événement d'envoi des réponses d'un utilisateur
+    socket.on('send_response_finish', (data) => {
+        if (data.quizz_link in quizzs) {
+            const quizz = quizzs[data.quizz_link];
             data.questions_response.forEach(element => {
-                quizzs[data.quizz_link].reponses.push(element)
+                quizz.reponses.push(element);
             });
-            socket.emit("reponse_recieved");
-            quizzs[data.quizz_link].cmp++;
-            socket.to(data.quizz_link).emit("nb_user_responses",{quizz_link:data.quizz_link,nb_response:quizzs[data.quizz_link].cmp})
+        
+            socket.emit('reponse_recieved');
+            quizz.cmp++;
+            socket.to(data.quizz_link).emit('nb_user_responses', { quizz_link: data.quizz_link, nb_response: quizz.cmp });
         }
+    });
 
-    })
-
-    socket.on("participant_finish",(data)=>{
-        quizzs[data.quizz_link].cmp++;
-        socket.to(data.quizz_link).emit("nb_user_responses",{quizz_link:data.quizz_link,nb_response:quizzs[data.quizz_link].cmp})
-    })
+    // Gestion de l'événement lorsqu'un participant termine le quiz
+    socket.on('participant_finish', (data) => {
+        const quizz = quizzs[data.quizz_link];
+        quizz.cmp++;
+        socket.to(data.quizz_link).emit('nb_user_responses', { quizz_link: data.quizz_link, nb_response: quizz.cmp });
+    });
 
     socket.on("responded",(data)=>{
         if(data.quizz_link in quizzs){
+            const quizz = quizzs[data.quizz_link];
+
             if(quizzs[data.quizz_link].quizz_type==="timer" && quizzs[data.quizz_link].timer>0){
                 socket.to(data.quizz_link).emit("user_responded",{response:data.response})
-                quizzs[data.quizz_link].reponses.push(data.question_with_response)
-                console.log(quizzs[data.quizz_link].reponses)
             }else{
                 socket.to(data.quizz_link).emit("user_responded",{response:data.response})
-                quizzs[data.quizz_link].reponses.push(data.question_with_response)
-                console.log(quizzs[data.quizz_link].reponses)
-
             }
+
+            // Met à jour le quizz
+            quizz.currResponse = quizz.currResponse.concat(data.response);
+            quizz.nbCurrResponse++;
+            quizz.reponses.push(data.question_with_response);
         }
     })
 
     socket.on("set_timer",(data)=>{
-        if(data.quizz_link in quizzs){
-            quizzs[data.quizz_link].timer=data.timer;
-            socket.to(data.quizz_link).emit("give_counter",{timer: quizzs[data.quizz_link].timer})
+        if (data.quizz_link in quizzs) {
+            const quizz = quizzs[data.quizz_link];
+            quizz.timer = data.timer;
+            socket.to(data.quizz_link).emit('give_counter', { timer: quizz.timer });
         }
     })
 
@@ -288,18 +321,12 @@ io.on("connection",(socket)=>{
     // Géstion de l'événement de déconnexion d'un utilisateur
     //Si l'utilisateur est le créateur on met fin au quizz
     socket.on("disconnect", ()=>{
-        const quizz_link =getKeyByCreator(quizzs,socket.id);
-        if(quizz_link in quizzs){
-            socket.emit("quizz_ended",{quizz_link:quizz_link})
-            socket.to(quizz_link).emit("quizz_ended")
-            delete quizzs[quizz_link]
-            console.log(`Admin with ID: ${socket.id} leave room: ${quizz_link}`);
-        }
-        
-        
-        const quizz_link_2=findArrayWithElement(quizzs,socket.id)
-        if(quizz_link_2!==null){
-            socket.to(quizz_link_2).emit("user_join_or_left",{nb_user:(io.sockets.adapter.rooms.get(quizz_link_2).size)-1})
+        const quizz_link=findArrayWithElement(quizzs,socket.id)
+        if(quizz_link!==null){
+            if (io.sockets.adapter.rooms.has(quizz_link)) {
+                const nbUsers = io.sockets.adapter.rooms.get(quizz_link).size - 1;
+                socket.to(quizz_link).emit("user_join_or_left", { nb_user: nbUsers });
+            }
         }
         console.log("deco : "+socket.id)
     });
