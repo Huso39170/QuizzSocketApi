@@ -10,15 +10,15 @@ app.use(cors());
 // Création d'un serveur HTTP à partir de l'application Express
 const server = http.createServer(app);
 
-const apiUrl = 'http://localhost:3500';
+const apiUrl = 'https://quizzeo-st-api.onrender.com'; //http://localhost:3500
 
 
 // Création d'une instance de Socket.IO en configurant CORS
 const io = new Server(server,{
     cors:{
-        origin:'http://localhost:3000',
+        origin:'https://quizzeo-st.onrender.com', //http://localhost:3000
         methods: ["GET","POST"],
-        headers:{'Access-Control-Allow-Origin': 'http://localhost:3000'},
+        headers:{'Access-Control-Allow-Origin': 'https://quizzeo-st.onrender.com'}, //http://localhost:3000
         withCredentials: true
     }
 }); 
@@ -334,6 +334,6 @@ io.on("connection",(socket)=>{
 
 
 // Lancement du serveur sur le port 3001
-server.listen(3001,()=>{
+server.listen(()=>{ 
     console.log("SERVER IS RUNNING");
 })
