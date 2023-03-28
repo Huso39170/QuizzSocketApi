@@ -18,7 +18,7 @@ const io = new Server(server,{
     cors:{
         origin:'https://quizzeo.onrender.com',
         methods: ["GET","POST"],
-        headers:{'Access-Control-Allow-Origin': 'https://quizzeo.onrender.com'},
+        headers:{'Access-Control-Allow-Origin': '*'},
         withCredentials: true
     }
 }); 
