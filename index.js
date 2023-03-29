@@ -16,7 +16,7 @@ const apiUrl = 'https://quizzeo-st-api.onrender.com'; //http://localhost:3500
 // Création d'une instance de Socket.IO en configurant CORS
 const io = new Server(server,{
     cors:{
-        origin:'https://quizzeo-st.onrender.com', //http://localhost:3000
+        origin:'*', //http://localhost:3000
         methods: ["GET","POST"],
         headers:{'Access-Control-Allow-Origin': 'https://quizzeo-st.onrender.com'}, //http://localhost:3000
         withCredentials: true
