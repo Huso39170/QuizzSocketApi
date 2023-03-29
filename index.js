@@ -16,12 +16,18 @@ const apiUrl = 'https://quizzeo-st-api.onrender.com'; //http://localhost:3500
 // Création d'une instance de Socket.IO en configurant CORS
 const io = new Server(server,{
     cors:{
-        origin:'https://quizzeo-st.onrender.com', //http://localhost:3000
+        //origin:'https://quizzeo-st.onrender.com', //http://localhost:3000
+        origins: "*:*",
         methods: ["GET","POST"],
-        headers:{'Access-Control-Allow-Origin': 'https://quizzeo-st.onrender.com'}, //http://localhost:3000
+        //headers:{'Access-Control-Allow-Origin': 'https://quizzeo-st.onrender.com'}, //http://localhost:3000
         withCredentials: true
     }
 }); 
+
+// Lancement du serveur sur le port 3001
+server.listen(process.env.PORT, ()=>{ 
+    console.log("SERVER IS RUNNING");
+})
 
 
 // Définition d'un objet pour stocker les quizzs en cours
@@ -333,7 +339,3 @@ io.on("connection",(socket)=>{
 });
 
 
-// Lancement du serveur sur le port 3001
-server.listen(()=>{ 
-    console.log("SERVER IS RUNNING");
-})
